@@ -307,7 +307,7 @@ function ask(title,story,set,time,cb){
 }
 
 // ---------- actions ----------
-const GAIN={log:2,coal:3,iron:2,diamond:1};const NAME={log:'брёвна',coal:'уголь',iron:'железо',diamond:'алмаз'};
+const GAIN={log:4,coal:4,iron:2,diamond:3};const NAME={log:'брёвна',coal:'уголь',iron:'железо',diamond:'алмаз'};
 function breakBlock(r,color){set(r.x,r.y,r.z,null);burst(r.x+.5,r.y+.5,r.z+.5,color,18);sfx.hit();rebuild()}
 function mine(){
   const r=ray();if(!r)return;const t=r.type;
@@ -315,7 +315,7 @@ function mine(){
   if(GAIN[t]){ask('ДОБЫЧА · '+NAME[t].toUpperCase(),`Реши, чтобы добыть ${NAME[t]} (+${GAIN[t]})`,QSETS[t],t==='diamond'?25:20,ok=>{
       if(ok){inv[t]+=GAIN[t];inv[t+'T']++;breakBlock(r,COLOR[t]);toast(`+${GAIN[t]} ${NAME[t]}`)}else{toast('Кирка соскользнула! Попробуй ещё раз');burst(r.x+.5,r.y+.5,r.z+.5,0x888888,5,2)}hud()});return}
   if(t==='obsidian'){if(!inv.pick){toast('Обсидиан не ломается! Нужна алмазная кирка');sfx.bad();return}
-    ask('ОБСИДИАН','Алмазная кирка против обсидиана. Сложная задача!',QSETS.boss,15,ok=>{if(!ok){toast('Не пробил! Ещё раз');return}const k=key(r.x,r.y,r.z);const h=(hp.get(k)||2)-1;
+    ask('ОБСИДИАН','Алмазная кирка против обсидиана. Сложная задача!',QSETS.boss,15,ok=>{if(!ok){toast('Не пробил! Ещё раз');return}const k=key(r.x,r.y,r.z);const h=(hp.get(k)||1)-1;
       if(h<=0){hp.delete(k);inv.obsBroken=true;for(let y=BASE;y<BASE+3;y++)if(get(r.x,y,r.z)==='obsidian'&&!(y===r.y)){set(r.x,y,r.z,null);burst(r.x+.5,y+.5,r.z+.5,COLOR.obsidian,10)}breakBlock(r,COLOR.obsidian);toast('Обсидиан пробит! Сундук внутри')}else{hp.set(k,h);burst(r.x+.5,r.y+.5,r.z+.5,0x3b2a5c,10);sfx.hit();rebuild();toast('Трещина! Ещё один удар')}hud()});return}
   if(t==='chest'){winGame();return}
   if(t==='planks'||t==='bricks'){toast('Стену так не сломать — поставь TNT (E)');return}
@@ -336,7 +336,7 @@ function explode(p){
   const cx=p.x+.5,cy=p.y+.5,cz=p.z+.5;let pl=0,br=0,cracked=0;
   for(let x=p.x-3;x<=p.x+3;x++)for(let y=p.y-3;y<=p.y+3;y++)for(let z=p.z-3;z<=p.z+3;z++){const t=get(x,y,z);if(!t)continue;const d=Math.hypot(x+.5-cx,y+.5-cy,z+.5-cz);if(d>2.6)continue;
     if(t==='planks'){set(x,y,z,null);pl++;burst(x+.5,y+.5,z+.5,COLOR.planks,4,7,.25,1.6)}
-    else if(t==='bricks'){const k=key(x,y,z);const h=(hp.get(k)||2)-1;if(h<=0){hp.delete(k);set(x,y,z,null);br++;burst(x+.5,y+.5,z+.5,COLOR.bricks,4,7,.25,1.6)}else{hp.set(k,h);cracked++}}
+    else if(t==='bricks'){const k=key(x,y,z);const h=(hp.get(k)||1)-1;if(h<=0){hp.delete(k);set(x,y,z,null);br++;burst(x+.5,y+.5,z+.5,COLOR.bricks,4,7,.25,1.6)}else{hp.set(k,h);cracked++}}
     else if(t==='leaves'){set(x,y,z,null)}}
   if(pl)inv.planksBroken=true;if(br)inv.bricksBroken=true;
   fire(cx,cy,cz,40);smoke(cx,cy,cz,22);sfx.boom();rebuild();
