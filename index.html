@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BlockCraft Math</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:"Press Start 2P",monospace;color:#fff}
+canvas{display:block}
+.px{font-family:"Press Start 2P",monospace}
+#hud{position:fixed;inset:0;pointer-events:none}
+#cross{position:absolute;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%)}
+#cross:before,#cross:after{content:"";position:absolute;background:#fff;mix-blend-mode:difference}
+#cross:before{left:10px;top:0;width:2px;height:22px}
+#cross:after{top:10px;left:0;height:2px;width:22px}
+#bar{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:4px;background:rgba(0,0,0,.45);padding:4px;border:3px solid #222}
+.slot{width:54px;height:54px;background:#8b8b8b;border:3px solid;border-color:#fff #555 #555 #fff;position:relative;display:flex;align-items:center;justify-content:center}
+.slot img{width:36px;height:36px;image-rendering:pixelated}
+.slot span{position:absolute;right:3px;bottom:2px;font-size:10px;text-shadow:2px 2px 0 #3f3f3f}
+.slot em{position:absolute;left:3px;top:2px;font-size:7px;font-style:normal;color:#ff5;text-shadow:1px 1px 0 #000}
+#goal{position:absolute;left:12px;top:12px;font-size:10px;line-height:1.9;background:rgba(0,0,0,.45);padding:10px 12px;max-width:340px;text-shadow:2px 2px 0 #222}
+#goal .done{color:#7cfc3a;text-decoration:line-through}
+#timer{position:absolute;right:12px;top:12px;font-size:12px;background:rgba(0,0,0,.45);padding:10px}
+#toast{position:absolute;left:50%;top:62%;transform:translateX(-50%);font-size:12px;text-shadow:2px 2px 0 #222;white-space:nowrap}
+#hint{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);font-size:9px;opacity:.85;text-shadow:2px 2px 0 #222;white-space:nowrap}
+.panel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#c6c6c6;color:#3f3f3f;border:4px solid;border-color:#fff #555 #555 #fff;padding:18px;width:min(460px,92vw);display:none;pointer-events:auto}
+.panel.on{display:block}
+.panel h3{margin:0 0 12px;font-size:12px;color:#3f3f3f}
+.q{font-size:22px;color:#222;margin:10px 0 14px;font-family:system-ui,sans-serif;font-weight:800}
+.story{font-size:9px;line-height:1.7;color:#555}
+.tbar{height:10px;background:#555;border:2px solid #333;margin:8px 0}
+.tbar i{display:block;height:100%;background:#7cfc3a}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.opt{font-family:system-ui,sans-serif;font-weight:800;font-size:20px;padding:12px 4px;background:#8b8b8b;color:#fff;border:3px solid;border-color:#fff #555 #555 #fff;cursor:pointer;text-shadow:2px 2px 0 #3f3f3f}
+.opt:hover{background:#a0a0ff}
+.opt.ok{background:#3f9f2a}.opt.no{background:#a83232}
+.msg{min-height:18px;margin-top:10px;font-size:10px}
+.msg.ok{color:#2a7a12}.msg.no{color:#a82020}
+.recipe{display:flex;align-items:center;justify-content:space-between;background:#8b8b8b;border:3px solid;border-color:#555 #fff #fff #555;padding:8px;margin-bottom:8px;color:#fff;text-shadow:2px 2px 0 #3f3f3f}
+.recipe small{font-size:8px;display:block;margin-top:6px;color:#eee}
+.btn{font-family:"Press Start 2P",monospace;font-size:10px;padding:10px 12px;background:#7d7d7d;color:#fff;border:3px solid;border-color:#fff #555 #555 #fff;cursor:pointer;text-shadow:2px 2px 0 #3f3f3f}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+#start{display:block}
+#start p{font-size:9px;line-height:1.9;color:#3f3f3f}
+#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div id="cross"></div>
+  <div id="goal"></div>
+  <div id="timer"><span id="tm">0:00</span> <span id="mute" style="margin-left:10px">🔊 M</span></div>
+  <div id="toast"></div>
+  <div id="hint">ЛКМ — добыть · E — поставить TNT · C — крафт · WASD + пробел</div>
+  <div id="bar"></div>
+</div>
+<div id="flash"></div>
+
+<div class="panel" id="start">
+  <h3>⛏ BLOCKCRAFT MATH</h3>
+  <p>Добывай брёвна, уголь, железо и алмазы — каждый удар это задача на дроби. Скрафти TNT и алмазную кирку, взорви стены крепости, пробей обсидиан и открой сундук с лутом.</p>
+  <p>Управление: WASD — ходить, мышь — смотреть, пробел — прыжок, ЛКМ — добыть, E — поставить TNT, C — крафт.</p>
+  <button class="btn" id="go" style="width:100%">ИГРАТЬ</button>
+</div>
+
+<div class="panel" id="qpanel">
+  <h3 id="qtitle">ДОБЫЧА</h3>
+  <div class="story" id="qstory"></div>
+  <div class="tbar"><i id="qt"></i></div>
+  <div class="q" id="qq"></div>
+  <div class="opts" id="qopts"></div>
+  <div class="msg" id="qmsg"></div>
+</div>
+
+<div class="panel" id="craft">
+  <h3>ВЕРСТАК</h3>
+  <div class="recipe"><div>TNT<small>4 угля + 2 бревна + 1 железо</small></div><button class="btn" id="c_tnt">КРАФТ</button></div>
+  <div class="recipe"><div>Алмазная кирка<small>3 алмаза + 2 бревна</small></div><button class="btn" id="c_pick">КРАФТ</button></div>
+  <button class="btn" id="c_close" style="width:100%">ЗАКРЫТЬ (C)</button>
+</div>
+
+<div class="panel" id="win">
+  <h3>🏆 СУНДУК ОТКРЫТ!</h3>
+  <p class="story" id="wintext"></p>
+  <button class="btn" id="again" style="width:100%">ИГРАТЬ ЕЩЁ</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+// ---------- utils ----------
+const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const pick=a=>a[rnd(0,a.length-1)];
+const gcd=(a,b)=>b?gcd(b,a%b):Math.abs(a);
+const frac=(n,d)=>{const g=gcd(n,d);n/=g;d/=g;return d===1?String(n):n+'/'+d};
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=rnd(0,i);[a[i],a[j]]=[a[j],a[i]]}return a};
+const $=id=>document.getElementById(id);
+
+// ---------- fraction questions ----------
+const Q={
+  simplify(){const d=pick([6,8,9,10,12,14,15,16,18,20,21,24]);let n;do{n=rnd(2,d-1)}while(gcd(n,d)===1);const g=gcd(n,d);
+    return {q:`Сократи: ${n}/${d}`,a:frac(n,d),wrong:[`${n/g}/${d}`,`${n}/${d/g}`,frac(n+1,d)==frac(n,d)?frac(n+2,d):frac(n+1,d)]}},
+  addSame(){const d=pick([5,6,7,8,9,10,12]);const a=rnd(1,d-2),b=rnd(1,d-1-a);
+    return {q:`${a}/${d} + ${b}/${d} = ?`,a:frac(a+b,d),wrong:[`${a+b}/${2*d}`,frac(a+b+1,d),frac(Math.max(1,a+b-1),d)]}},
+  subSame(){const d=pick([5,6,7,8,9,10,12]);const a=rnd(3,d-1),b=rnd(1,a-1);
+    return {q:`${a}/${d} − ${b}/${d} = ?`,a:frac(a-b,d),wrong:[`${a-b}/0`.replace('/0','/'+(d-d||1)),frac(a-b+1,d),frac(a+b,d)].map(String).filter(x=>!x.endsWith('/1'))}},
+  mul(){const b=pick([2,3,4,5,6]),d=pick([2,3,4,5,6,8]);const a=rnd(1,b),c=rnd(1,d-1);if(a===b)return Q.mul();
+    return {q:`${a}/${b} · ${c}/${d} = ?`,a:frac(a*c,b*d),wrong:[`${a*c}/${b+d}`,frac(a+c,b*d),frac(a*d,b*c)]}},
+  addDiff(){const ds=pick([[2,3],[3,4],[2,5],[4,6],[3,5],[2,7],[4,5],[6,8]]);const [p,r]=ds;const a=rnd(1,p-1),b=rnd(1,r-1);const L=p*r/gcd(p,r);
+    return {q:`${a}/${p} + ${b}/${r} = ?`,a:frac(a*L/p+b*L/r,L),wrong:[`${a+b}/${p+r}`,frac(a*L/p+b*L/r+1,L),frac(a*b,p*r)]}},
+  subDiff(){const ds=pick([[2,3],[3,4],[2,5],[4,6],[3,5],[4,5],[6,8]]);const [p,r]=ds;const L=p*r/gcd(p,r);let a,b,n;
+    for(let k=0;k<50;k++){a=rnd(1,p-1);b=rnd(1,r-1);n=a*L/p-b*L/r;if(n>0)break}if(n<=0)return Q.addDiff();
+    return {q:`${a}/${p} − ${b}/${r} = ?`,a:frac(n,L),wrong:[`${Math.abs(a-b)||1}/${Math.abs(p-r)||1}`,frac(n+1,L),frac(a*L/p+b*L/r,L)]}},
+  boss(){const t=rnd(1,3);
+    if(t===1){const ds=pick([[3,4,6],[2,3,6],[4,6,12],[2,5,10]]);const [p,r,s]=ds;const L=[p,r,s].reduce((x,y)=>x*y/gcd(x,y));
+      let a,b,c,n;for(let k=0;k<60;k++){a=rnd(1,p-1);b=rnd(1,r-1);c=rnd(1,s-1);n=a*L/p+b*L/r-c*L/s;if(n>0)break}if(n<=0)return Q.addDiff();
+      return {q:`${a}/${p} + ${b}/${r} − ${c}/${s} = ?`,a:frac(n,L),wrong:[frac(n+1,L),`${a+b-c>0?a+b-c:1}/${p+r+s}`,frac(n+2,L)]}}
+    if(t===2){const a=rnd(1,5),b=rnd(a+1,9),c=rnd(1,5),d=rnd(c+1,9);
+      return {q:`${a}/${b} · ${c}/${d} (сократи ответ)`,a:frac(a*c,b*d),wrong:[`${a*c}/${b*d}`===frac(a*c,b*d)?frac(a*c+1,b*d):`${a*c}/${b*d}`,`${a*c}/${b+d}`,frac(a*d,b*c)]}}
+    const q=Q.addDiff();q.q=q.q.replace('= ?','= ? (сократи)');return q;}
+};
+const QSETS={log:[Q.simplify,Q.addSame,Q.subSame],coal:[Q.simplify,Q.addSame,Q.subSame,Q.mul],iron:[Q.addDiff,Q.subDiff,Q.mul],diamond:[Q.mul,Q.addDiff,Q.subDiff],boss:[Q.boss,Q.boss,Q.mul,Q.subDiff]};
+const val=s=>{s=String(s);if(s.includes('/')){const[n,d]=s.split('/').map(Number);return n/d}return Number(s)};
+
+// ---------- textures ----------
+function tex(draw){const c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d');draw(g);const t=new THREE.CanvasTexture(c);t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestFilter;t._c=c;return t}
+function noise(g,pal,seed=1){for(let y=0;y<16;y++)for(let x=0;x<16;x++){g.fillStyle=pal[(Math.random()*pal.length)|0];g.fillRect(x,y,1,1)}}
+function ore(g,dots){noise(g,['#7d7d7d','#747474','#868686','#6b6b6b']);const spots=[[3,3],[10,2],[6,7],[12,9],[2,11],[8,12],[13,13]];
+  for(const[x,y]of spots){g.fillStyle=dots[0];g.fillRect(x,y,2,2);g.fillStyle=dots[1];g.fillRect(x+1,y,1,1)}}
+const T={
+  grassTop:tex(g=>noise(g,['#5f9f35','#6cb33e','#4f8a2b','#79c046'])),
+  dirt:tex(g=>noise(g,['#866043','#79553a','#8f6a4a','#6c4b33'])),
+  grassSide:tex(g=>{noise(g,['#866043','#79553a','#8f6a4a','#6c4b33']);for(let x=0;x<16;x++){const h=3+((Math.random()*2)|0);for(let y=0;y<h;y++){g.fillStyle=pick(['#5f9f35','#6cb33e','#4f8a2b']);g.fillRect(x,y,1,1)}}}),
+  stone:tex(g=>noise(g,['#7d7d7d','#747474','#868686','#6b6b6b'])),
+  logSide:tex(g=>{for(let x=0;x<16;x++){const c=pick(['#6b5132','#5a4228','#7a5c39','#4d3a22']);for(let y=0;y<16;y++){g.fillStyle=Math.random()<.8?c:'#3d2d1a';g.fillRect(x,y,1,1)}}}),
+  logTop:tex(g=>{noise(g,['#b0905a','#9c7d4a','#a88752']);g.strokeStyle='#7a5c39';g.lineWidth=1;g.strokeRect(3.5,3.5,9,9);g.strokeRect(6.5,6.5,3,3);g.fillStyle='#5a4228';g.fillRect(0,0,16,1);g.fillRect(0,15,16,1);g.fillRect(0,0,1,16);g.fillRect(15,0,1,16)}),
+  leaves:tex(g=>noise(g,['#3b7a1f','#2f6a18','#4a8a28','#26571a','#3b7a1f'])),
+  coal:tex(g=>ore(g,['#1d1d1d','#3a3a3a'])),
+  iron:tex(g=>ore(g,['#d8af93','#c48d6b'])),
+  diamond:tex(g=>ore(g,['#5decf5','#2bc4cf'])),
+  planks:tex(g=>{noise(g,['#b08b52','#9c7943','#c29a5c','#a8844e']);g.fillStyle='#6e5530';for(const y of[3,7,11,15])g.fillRect(0,y,16,1);g.fillRect(4,0,1,4);g.fillRect(11,4,1,4);g.fillRect(6,8,1,4);g.fillRect(13,12,1,4)}),
+  bricks:tex(g=>{noise(g,['#7a7a7a','#717171','#828282']);g.fillStyle='#4f4f4f';for(const y of[0,7,15])g.fillRect(0,y,16,1);for(const x of[0,8])g.fillRect(x,0,1,7);for(const x of[4,12])g.fillRect(x,8,1,7)}),
+  bricksCracked:tex(g=>{noise(g,['#6e6e6e','#646464','#787878']);g.fillStyle='#4f4f4f';for(const y of[0,7,15])g.fillRect(0,y,16,1);for(const x of[0,8])g.fillRect(x,0,1,7);for(const x of[4,12])g.fillRect(x,8,1,7);g.fillStyle='#2e2e2e';[[3,2],[4,3],[5,4],[6,5],[10,9],[11,10],[12,11],[9,12]].forEach(([x,y])=>g.fillRect(x,y,1,1))}),
+  obsidian:tex(g=>noise(g,['#140f1f','#22183a','#3b2a5c','#1a1328'])),
+  obsidianCracked:tex(g=>{noise(g,['#140f1f','#22183a','#3b2a5c','#1a1328']);g.fillStyle='#a58bd6';[[4,3],[5,4],[6,5],[7,6],[8,7],[9,9],[10,10],[6,11]].forEach(([x,y])=>g.fillRect(x,y,1,1))}),
+  tntSide:tex(g=>{g.fillStyle='#d23b2b';g.fillRect(0,0,16,16);g.fillStyle='#b02a1d';for(const x of[3,7,11])g.fillRect(x,0,1,16);g.fillStyle='#eeeeee';g.fillRect(0,5,16,6);g.fillStyle='#222';
+    [[2,6],[2,7],[2,8],[2,9],[1,6],[3,6],[6,6],[6,7],[6,8],[6,9],[7,7],[8,8],[9,6],[9,7],[9,8],[9,9],[12,6],[12,7],[12,8],[12,9],[11,6],[13,6]].forEach(([x,y])=>g.fillRect(x,y,1,1))}),
+  tntTop:tex(g=>{g.fillStyle='#d23b2b';g.fillRect(0,0,16,16);g.fillStyle='#bdbdbd';g.fillRect(4,4,8,8);g.fillStyle='#555';g.fillRect(7,7,2,2)}),
+  tntFlash:tex(g=>{g.fillStyle='#ffffff';g.fillRect(0,0,16,16)}),
+  chestSide:tex(g=>{noise(g,['#a5732f','#94672a','#b37f36']);g.fillStyle='#3d2a12';g.fillRect(0,0,16,1);g.fillRect(0,15,16,1);g.fillRect(0,0,1,16);g.fillRect(15,0,1,16);g.fillRect(0,6,16,1);g.fillStyle='#d8d8d8';g.fillRect(7,5,2,4)}),
+  chestTop:tex(g=>{noise(g,['#a5732f','#94672a','#b37f36']);g.fillStyle='#3d2a12';g.strokeStyle='#3d2a12';g.strokeRect(.5,.5,15,15)}),
+};
+const M=t=>new THREE.MeshLambertMaterial({map:t});
+const B={ // id -> materials [px,nx,py,ny,pz,nz]
+  grass:[M(T.grassSide),M(T.grassSide),M(T.grassTop),M(T.dirt),M(T.grassSide),M(T.grassSide)],
+  dirt:Array(6).fill(M(T.dirt)), stone:Array(6).fill(M(T.stone)),
+  log:[M(T.logSide),M(T.logSide),M(T.logTop),M(T.logTop),M(T.logSide),M(T.logSide)],
+  leaves:Array(6).fill(M(T.leaves)), coal:Array(6).fill(M(T.coal)), iron:Array(6).fill(M(T.iron)), diamond:Array(6).fill(M(T.diamond)),
+  planks:Array(6).fill(M(T.planks)), bricks:Array(6).fill(M(T.bricks)), bricksCracked:Array(6).fill(M(T.bricksCracked)),
+  obsidian:Array(6).fill(M(T.obsidian)), obsidianCracked:Array(6).fill(M(T.obsidianCracked)),
+  chest:[M(T.chestSide),M(T.chestSide),M(T.chestTop),M(T.chestTop),M(T.chestSide),M(T.chestSide)],
+};
+const COLOR={grass:0x5f9f35,dirt:0x866043,stone:0x7d7d7d,log:0x6b5132,leaves:0x3b7a1f,coal:0x2a2a2a,iron:0xd8af93,diamond:0x5decf5,planks:0xb08b52,bricks:0x7a7a7a,bricksCracked:0x6e6e6e,obsidian:0x22183a,obsidianCracked:0x3b2a5c,chest:0xa5732f};
+
+// ---------- three setup ----------
+const renderer=new THREE.WebGLRenderer({antialias:false});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);document.body.prepend(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x87ceeb);scene.fog=new THREE.Fog(0x87ceeb,28,70);
+const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.05,200);
+scene.add(new THREE.HemisphereLight(0xffffff,0x6a6a6a,.85));const sun=new THREE.DirectionalLight(0xffffff,.55);sun.position.set(30,50,20);scene.add(sun);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+// clouds
+const clouds=new THREE.Group();for(let i=0;i<14;i++){const c=new THREE.Mesh(new THREE.BoxGeometry(rnd(6,14),1.2,rnd(4,9)),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.9}));c.position.set(rnd(-30,70),26,rnd(-30,70));clouds.add(c)}scene.add(clouds);
+
+// ---------- world ----------
+const W=40,D=40,CX=20,CZ=20,BASE=4; // ground top surface at y=BASE (blocks fill y<BASE)
+let world=new Map(),hp=new Map();
+const key=(x,y,z)=>x+','+y+','+z;
+const get=(x,y,z)=>world.get(key(x,y,z));
+const set=(x,y,z,t)=>{if(t)world.set(key(x,y,z),t);else world.delete(key(x,y,z))};
+const solid=(x,y,z)=>{if(x<0||z<0||x>=W||z>=D)return y<40; if(y<0)return true; return world.has(key(Math.floor(x),Math.floor(y),Math.floor(z)))&&world.get(key(Math.floor(x),Math.floor(y),Math.floor(z)))!=='leavesX'};
+function heightAt(x,z){const dc=Math.hypot(x-CX,z-CZ);let h=BASE+Math.round(1.6*Math.sin(x*.27)+1.4*Math.cos(z*.23)+Math.sin((x+z)*.13));if(dc<12)h=BASE;else if(dc<15)h=Math.round(BASE+(h-BASE)*(dc-12)/3);if(Math.hypot(x-CX,z-3)<4)h=BASE;return Math.max(2,Math.min(9,h))}
+function buildWorld(){
+  world=new Map();hp=new Map();
+  for(let x=0;x<W;x++)for(let z=0;z<D;z++){const h=heightAt(x,z);for(let y=0;y<h;y++)set(x,y,z,y===h-1?'grass':y>=h-3?'dirt':'stone')}
+  // ore outcrops
+  const want=shuffle([...Array(14).fill('coal'),...Array(8).fill('iron'),...Array(6).fill('diamond')]);
+  const spots=[[5,6],[34,6],[6,33],[33,34],[4,20],[36,20],[20,36],[12,33],[29,30],[9,12],[31,12]];
+  for(const[sx,sz]of spots){const h=heightAt(sx,sz);for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){const tall=(dx===0&&dz===0)?3:(Math.abs(dx)+Math.abs(dz)===1?2:1);for(let y=h;y<h+tall;y++){set(sx+dx,y,sz+dz,want.length&&Math.random()<.55?want.pop():'stone')}}}
+  // leftover ores: put on top of outcrops
+  let k=0;while(want.length){const[sx,sz]=spots[k%spots.length];const h=heightAt(sx,sz);set(sx,h+3+Math.floor(k/spots.length),sz,want.pop());k++}
+  // trees
+  for(const[tx,tz]of[[10,4],[28,5],[3,27],[37,28],[14,37],[26,37],[8,22],[33,16],[16,9],[25,11]]){const h=heightAt(tx,tz);for(let y=h;y<h+4;y++)set(tx,y,tz,'log');
+    for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++)for(let y=h+3;y<h+5;y++){if(Math.abs(dx)===2&&Math.abs(dz)===2)continue;if(dx===0&&dz===0&&y<h+4)continue;if(!get(tx+dx,y,tz+dz))set(tx+dx,y,tz+dz,'leaves')}
+    for(const[dx,dz]of[[0,0],[1,0],[-1,0],[0,1],[0,-1]])set(tx+dx,h+5,tz+dz,'leaves')}
+  // fortress
+  const ring=(r,y0,hgt,t)=>{for(let x=CX-r;x<=CX+r;x++)for(let z=CZ-r;z<=CZ+r;z++){if(Math.max(Math.abs(x-CX),Math.abs(z-CZ))!==r)continue;for(let y=y0;y<y0+hgt;y++)set(x,y,z,t)}};
+  ring(6,BASE,3,'planks');ring(4,BASE,4,'bricks');ring(1,BASE,3,'obsidian');
+  for(let x=CX-1;x<=CX+1;x++)for(let z=CZ-1;z<=CZ+1;z++)set(x,BASE+3,z,'obsidian');
+  set(CX,BASE,CZ,'chest');set(CX,BASE+1,CZ,null);set(CX,BASE+2,CZ,null);
+}
+const meshes={};const box=new THREE.BoxGeometry(1,1,1);
+const transparentNeighbor=t=>!t||t==='leaves'||t==='chest';
+function rebuild(){
+  for(const k in meshes){scene.remove(meshes[k]);meshes[k].dispose()}
+  const lists={};
+  for(const[k,t]of world){const[x,y,z]=k.split(',').map(Number);
+    if(transparentNeighbor(get(x+1,y,z))||transparentNeighbor(get(x-1,y,z))||transparentNeighbor(get(x,y+1,z))||(y>0&&transparentNeighbor(get(x,y-1,z)))||transparentNeighbor(get(x,y,z+1))||transparentNeighbor(get(x,y,z-1))||t==='leaves'){
+      let tt=t;if((t==='bricks'||t==='obsidian')&&hp.get(k)===1)tt=t+'Cracked';(lists[tt]=lists[tt]||[]).push([x,y,z])}}
+  const m=new THREE.Matrix4();
+  for(const t in lists){const L=lists[t];const im=new THREE.InstancedMesh(box,B[t],L.length);L.forEach((p,i)=>{m.makeTranslation(p[0]+.5,p[1]+.5,p[2]+.5);im.setMatrixAt(i,m)});im.userData.type=t;scene.add(im);meshes[t]=im}
+}
+
+// ---------- player ----------
+const P={x:CX+.5,y:BASE,z:3.5,vy:0,yaw:Math.PI,pitch:-.05,onGround:false};
+const keys={};let locked=false,uiOpen=false;
+addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyC'&&started){toggleCraft()}if(e.code==='KeyE'&&started&&!uiOpen)placeTNT();if(e.code==='Space')e.preventDefault()});
+addEventListener('keyup',e=>keys[e.code]=false);
+const cv=renderer.domElement;const lockPtr=()=>{try{const p=cv.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}catch(e){}};
+cv.addEventListener('click',()=>{if(!started||uiOpen)return;if(!locked&&cv.requestPointerLock){lockPtr()}});
+document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===cv});
+let dragging=false,lx=0,ly=0,moved=0;
+cv.addEventListener('mousedown',e=>{if(e.button===0){dragging=true;lx=e.clientX;ly=e.clientY;moved=0}if(e.button===2&&started&&!uiOpen)placeTNT()});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+addEventListener('mouseup',e=>{if(e.button===0&&dragging){dragging=false;if(moved<6&&started&&!uiOpen)mine()}});
+addEventListener('mousemove',e=>{if(locked){P.yaw-=e.movementX*.0025;P.pitch-=e.movementY*.0025}else if(dragging){const dx=e.clientX-lx,dy=e.clientY-ly;moved+=Math.abs(dx)+Math.abs(dy);P.yaw-=dx*.005;P.pitch-=dy*.005;lx=e.clientX;ly=e.clientY}P.pitch=Math.max(-1.5,Math.min(1.5,P.pitch))});
+document.addEventListener('mousedown',e=>{if(locked&&e.button===0&&!uiOpen)mine()},true);
+const R=.3,HGT=1.7;
+function collides(x,y,z){for(const dx of[-R,R])for(const dz of[-R,R])for(const dy of[.05,.9,HGT-.05])if(solid(x+dx,y+dy,z+dz))return true;return false}
+function physics(dt){
+  if(uiOpen)return;
+  const sp=(keys.ShiftLeft?6.5:4.4)*dt;let fx=0,fz=0;
+  const s=Math.sin(P.yaw),c=Math.cos(P.yaw);
+  if(keys.KeyW||keys.ArrowUp){fx-=s;fz-=c}if(keys.KeyS||keys.ArrowDown){fx+=s;fz+=c}if(keys.KeyA||keys.ArrowLeft){fx-=c;fz+=s}if(keys.KeyD||keys.ArrowRight){fx+=c;fz-=s}
+  const l=Math.hypot(fx,fz)||1;fx=fx/l*sp;fz=fz/l*sp;
+  const tryMove=(nx,nz)=>{if(!collides(nx,P.y,nz))return true;if(P.onGround&&!collides(nx,P.y+1.05,nz)&&!collides(P.x,P.y+1.05,P.z)){P.y+=1.02;return true}return false};
+  if(fx&&tryMove(P.x+fx,P.z))P.x+=fx;if(fz&&tryMove(P.x,P.z+fz))P.z+=fz;
+  if(keys.Space&&P.onGround){P.vy=7.2;P.onGround=false}
+  P.vy-=22*dt;let ny=P.y+P.vy*dt;
+  if(P.vy<0&&collides(P.x,ny,P.z)){P.y=Math.floor(ny)+1;P.vy=0;P.onGround=true}
+  else if(P.vy>0&&collides(P.x,ny,P.z)){P.vy=0}
+  else{P.y=ny;P.onGround=false}
+  P.x=Math.max(.4,Math.min(W-.4,P.x));P.z=Math.max(.4,Math.min(D-.4,P.z));
+}
+// ---------- raycast ----------
+function ray(maxD=5.5){
+  const o=camera.position.clone();const d=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+  let x=Math.floor(o.x),y=Math.floor(o.y),z=Math.floor(o.z);
+  const sx=Math.sign(d.x),sy=Math.sign(d.y),sz=Math.sign(d.z);
+  const tdx=Math.abs(1/d.x),tdy=Math.abs(1/d.y),tdz=Math.abs(1/d.z);
+  let tx=((sx>0?x+1-o.x:o.x-x))*tdx,ty=((sy>0?y+1-o.y:o.y-y))*tdy,tz=((sz>0?z+1-o.z:o.z-z))*tdz;let n=[0,0,0],t=0;
+  while(t<maxD){if(tx<ty&&tx<tz){x+=sx;t=tx;tx+=tdx;n=[-sx,0,0]}else if(ty<tz){y+=sy;t=ty;ty+=tdy;n=[0,-sy,0]}else{z+=sz;t=tz;tz+=tdz;n=[0,0,-sz]}
+    const b=get(x,y,z);if(b)return{x,y,z,n,type:b}}
+  return null;
+}
+const sel=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.005,1.005,1.005)),new THREE.LineBasicMaterial({color:0x000000}));scene.add(sel);
+
+// ---------- audio ----------
+let AC=null,muted=false;const ac=()=>AC||(AC=new (window.AudioContext||window.webkitAudioContext)());
+addEventListener('keydown',e=>{if(e.code==='KeyM'){muted=!muted;$('mute').textContent=muted?'🔇 M':'🔊 M';if(AC)muted?AC.suspend():AC.resume()}});
+function tone(f,dur,type='square',vol=.08,slide=0){if(muted)return;const a=ac();const o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.value=f;if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,f+slide),a.currentTime+dur);g.gain.value=vol;g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+dur);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+dur)}
+function noiseBurst(dur,vol,f0,f1){if(muted)return;const a=ac();const len=a.sampleRate*dur;const buf=a.createBuffer(1,len,a.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,1.6);
+  const s=a.createBufferSource();s.buffer=buf;const f=a.createBiquadFilter();f.type='lowpass';f.frequency.setValueAtTime(f0,a.currentTime);f.frequency.exponentialRampToValueAtTime(f1,a.currentTime+dur);const g=a.createGain();g.gain.value=vol;s.connect(f).connect(g).connect(a.destination);s.start()}
+const sfx={hit:()=>noiseBurst(.12,.5,2500,600),pop:()=>tone(660,.12,'square',.06,300),bad:()=>tone(160,.25,'sawtooth',.06,-60),
+  fuse:()=>noiseBurst(.25,.18,6000,3000),boom:()=>{noiseBurst(2.2,1.4,1800,60);tone(70,1.2,'sine',.6,-40)},win:()=>{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,.25,'square',.07),i*140))}};
+
+// ---------- particles / fx ----------
+const parts=[];
+function burst(x,y,z,color,n=14,speed=4,size=.14,life=1){for(let i=0;i<n;i++){const m=new THREE.Mesh(new THREE.BoxGeometry(size,size,size),new THREE.MeshLambertMaterial({color}));m.position.set(x,y,z);scene.add(m);
+  parts.push({m,v:new THREE.Vector3((Math.random()-.5)*speed,Math.random()*speed*.9+1,(Math.random()-.5)*speed),life,max:life,spin:new THREE.Vector3(Math.random()*6,Math.random()*6,Math.random()*6)})}}
+function smoke(x,y,z,n=16){for(let i=0;i<n;i++){const m=new THREE.Mesh(new THREE.BoxGeometry(.6,.6,.6),new THREE.MeshBasicMaterial({color:i%3?0x777777:0x555555,transparent:true,opacity:.8}));m.position.set(x+(Math.random()-.5)*2,y+(Math.random()-.5)*2,z+(Math.random()-.5)*2);scene.add(m);
+  parts.push({m,v:new THREE.Vector3((Math.random()-.5)*1.5,1.2+Math.random(),(Math.random()-.5)*1.5),life:1.8,max:1.8,smoke:true,spin:new THREE.Vector3(1,1,1)})}}
+function fire(x,y,z,n=26){for(let i=0;i<n;i++){const m=new THREE.Mesh(new THREE.BoxGeometry(.35,.35,.35),new THREE.MeshBasicMaterial({color:pick([0xffd23f,0xff8c1a,0xff4d1a,0xffffff]),transparent:true,opacity:1}));m.position.set(x,y,z);scene.add(m);
+  parts.push({m,v:new THREE.Vector3((Math.random()-.5)*9,Math.random()*7,(Math.random()-.5)*9),life:.7,max:.7,fire:true,spin:new THREE.Vector3(3,3,3)})}}
+function updateParts(dt){for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.life-=dt;if(p.life<=0){scene.remove(p.m);p.m.geometry.dispose();parts.splice(i,1);continue}
+  if(!p.smoke)p.v.y-=(p.fire?6:16)*dt;else p.m.scale.multiplyScalar(1+dt*.45);p.m.position.addScaledVector(p.v,dt);p.m.rotation.x+=p.spin.x*dt;p.m.rotation.y+=p.spin.y*dt;
+  if(p.m.material.transparent)p.m.material.opacity=Math.max(0,p.life/p.max)*(p.smoke?.8:1);
+  if(!p.smoke&&!p.fire&&p.m.position.y<0)p.life=0}}
+const fireballs=[];
+function updateFireballs(dt){for(let i=fireballs.length-1;i>=0;i--){const f=fireballs[i];f.t+=dt;const k=f.t/.55;f.m.scale.setScalar(.5+k*3.2);f.m.material.opacity=Math.max(0,.9*(1-k));f.m.material.color.setHex(k<.4?0xfff0a0:0xff7a20);if(k>=1){scene.remove(f.m);f.m.geometry.dispose();fireballs.splice(i,1)}}}
+let shake=0;const flashLight=new THREE.PointLight(0xffaa55,0,30);scene.add(flashLight);
+
+// ---------- game state ----------
+let inv,started=false,t0=0,won=false,tnts=[];
+const ICON=t=>t._c.toDataURL();
+const pickIcon=(()=>{const c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d');g.fillStyle='#5decf5';[[2,2],[3,2],[4,2],[5,2],[6,2],[7,3],[8,4],[6,3],[5,3]].forEach(([x,y])=>g.fillRect(x,y,1,1));g.fillStyle='#6b5132';for(let i=0;i<9;i++)g.fillRect(4+i,4+i,2,2);return c.toDataURL()})();
+const SLOTS=[['log','Бревно',ICON(T.logSide)],['coal','Уголь',ICON(T.coal)],['iron','Железо',ICON(T.iron)],['diamond','Алмаз',ICON(T.diamond)],['tnt','TNT',ICON(T.tntSide)],['pick','Кирка',pickIcon]];
+function hud(){$('bar').innerHTML=SLOTS.map(([k,n,ic])=>`<div class="slot"><em>${n}</em><img src="${ic}"><span>${k==='pick'?(inv.pick?'✓':''):inv[k]||''}</span></div>`).join('');
+  const done={res:inv.logT+inv.coalT+inv.ironT+inv.diamondT>=6,tnt:inv.tntMade>0,walls:inv.planksBroken&&inv.bricksBroken,pick:inv.pick,obs:inv.obsBroken};
+  $('goal').innerHTML=[['res','1. Добудь ресурсы (ЛКМ по руде и брёвнам)'],['tnt','2. Скрафти TNT (C)'],['walls','3. Взорви 2 стены крепости (E)'],['pick','4. Скрафти алмазную кирку'],['obs','5. Пробей обсидиан киркой'],['chest','6. Открой сундук']].map(([k,t])=>`<div class="${done[k]?'done':''}">${t}</div>`).join('')}
+let toastT=null;function toast(t){$('toast').textContent=t;clearTimeout(toastT);toastT=setTimeout(()=>$('toast').textContent='',2200)}
+
+// ---------- questions UI ----------
+function ask(title,story,set,time,cb){
+  uiOpen=true;if(document.exitPointerLock)document.exitPointerLock();
+  const qq=pick(set)();$('qtitle').textContent=title;$('qstory').textContent=story;$('qq').textContent=qq.q;$('qmsg').textContent='';$('qmsg').className='msg';
+  const askReduce=/окра/.test(qq.q);const okW=w=>w!==qq.a&&!w.includes('/0')&&w!=='0'&&val(w)>0&&(askReduce||Math.abs(val(w)-val(qq.a))>1e-9);
+  const wrong=[...new Set(qq.wrong.map(String))].filter(okW).slice(0,3);
+  const opts=shuffle([qq.a,...wrong]);while(opts.length<4){const extra=frac(rnd(1,9),rnd(2,12));if(!opts.includes(extra)&&okW(extra))opts.push(extra)}
+  const box=$('qopts');box.innerHTML='';let done=false,left=time;
+  const fin=(ok,b)=>{if(done)return;done=true;clearInterval(iv);[...box.children].forEach(x=>{x.disabled=true;if(x.textContent===qq.a)x.classList.add('ok')});if(!ok&&b)b.classList.add('no');
+    $('qmsg').textContent=ok?'Верно!':(b?'Мимо! ':'Время вышло! ')+'Ответ: '+qq.a;$('qmsg').className='msg '+(ok?'ok':'no');(ok?sfx.pop:sfx.bad)();
+    setTimeout(()=>{$('qpanel').classList.remove('on');uiOpen=false;cb(ok)},ok?700:1300)};
+  opts.forEach(o=>{const b=document.createElement('button');b.className='opt';b.textContent=o;b.onclick=()=>fin(o===qq.a,b);box.appendChild(b)});
+  const iv=setInterval(()=>{left-=.1;$('qt').style.width=Math.max(0,left/time*100)+'%';if(left<=0)fin(false,null)},100);$('qt').style.width='100%';
+  $('qpanel').classList.add('on');
+}
+
+// ---------- actions ----------
+const GAIN={log:2,coal:3,iron:2,diamond:1};const NAME={log:'брёвна',coal:'уголь',iron:'железо',diamond:'алмаз'};
+function breakBlock(r,color){set(r.x,r.y,r.z,null);burst(r.x+.5,r.y+.5,r.z+.5,color,18);sfx.hit();rebuild()}
+function mine(){
+  const r=ray();if(!r)return;const t=r.type;
+  if(t==='leaves'){breakBlock(r,COLOR.leaves);return}
+  if(GAIN[t]){ask('ДОБЫЧА · '+NAME[t].toUpperCase(),`Реши, чтобы добыть ${NAME[t]} (+${GAIN[t]})`,QSETS[t],t==='diamond'?25:20,ok=>{
+      if(ok){inv[t]+=GAIN[t];inv[t+'T']++;breakBlock(r,COLOR[t]);toast(`+${GAIN[t]} ${NAME[t]}`)}else{toast('Кирка соскользнула! Попробуй ещё раз');burst(r.x+.5,r.y+.5,r.z+.5,0x888888,5,2)}hud()});return}
+  if(t==='obsidian'){if(!inv.pick){toast('Обсидиан не ломается! Нужна алмазная кирка');sfx.bad();return}
+    ask('ОБСИДИАН','Алмазная кирка против обсидиана. Сложная задача!',QSETS.boss,15,ok=>{if(!ok){toast('Не пробил! Ещё раз');return}const k=key(r.x,r.y,r.z);const h=(hp.get(k)||2)-1;
+      if(h<=0){hp.delete(k);inv.obsBroken=true;for(let y=BASE;y<BASE+3;y++)if(get(r.x,y,r.z)==='obsidian'&&!(y===r.y)){set(r.x,y,r.z,null);burst(r.x+.5,y+.5,r.z+.5,COLOR.obsidian,10)}breakBlock(r,COLOR.obsidian);toast('Обсидиан пробит! Сундук внутри')}else{hp.set(k,h);burst(r.x+.5,r.y+.5,r.z+.5,0x3b2a5c,10);sfx.hit();rebuild();toast('Трещина! Ещё один удар')}hud()});return}
+  if(t==='chest'){winGame();return}
+  if(t==='planks'||t==='bricks'){toast('Стену так не сломать — поставь TNT (E)');return}
+  toast('Это обычный блок. Ищи руду, брёвна и крепость');
+}
+function placeTNT(){
+  const r=ray();if(!r)return;
+  if(!(r.type==='planks'||r.type==='bricks'||r.type==='obsidian')){toast('Ставь TNT вплотную к стене крепости');return}
+  if(r.type==='obsidian'){toast('Обсидиан не боится взрывов! Нужна алмазная кирка');sfx.bad();return}
+  if(inv.tnt<1){toast('Нет TNT — скрафти его (C)');sfx.bad();return}
+  const p={x:r.x+r.n[0],y:r.y+r.n[1],z:r.z+r.n[2]};if(get(p.x,p.y,p.z)){toast('Тут нет места для TNT');return}
+  ask('ПОДЖОГ TNT','Реши задачу, чтобы поджечь фитиль!',QSETS.boss,15,ok=>{inv.tnt--;hud();
+    const m=new THREE.Mesh(box,[M(T.tntSide),M(T.tntSide),M(T.tntTop),M(T.tntTop),M(T.tntSide),M(T.tntSide)]);m.position.set(p.x+.5,p.y+.5,p.z+.5);scene.add(m);
+    if(!ok){toast('TNT отсырел... 💨');setTimeout(()=>{smoke(p.x+.5,p.y+.5,p.z+.5,8);scene.remove(m)},900);return}
+    toast('Фитиль горит! Отойди!');tnts.push({m,p,t:3,flash:0})});
+}
+function explode(p){
+  const cx=p.x+.5,cy=p.y+.5,cz=p.z+.5;let pl=0,br=0,cracked=0;
+  for(let x=p.x-3;x<=p.x+3;x++)for(let y=p.y-3;y<=p.y+3;y++)for(let z=p.z-3;z<=p.z+3;z++){const t=get(x,y,z);if(!t)continue;const d=Math.hypot(x+.5-cx,y+.5-cy,z+.5-cz);if(d>2.6)continue;
+    if(t==='planks'){set(x,y,z,null);pl++;burst(x+.5,y+.5,z+.5,COLOR.planks,4,7,.25,1.6)}
+    else if(t==='bricks'){const k=key(x,y,z);const h=(hp.get(k)||2)-1;if(h<=0){hp.delete(k);set(x,y,z,null);br++;burst(x+.5,y+.5,z+.5,COLOR.bricks,4,7,.25,1.6)}else{hp.set(k,h);cracked++}}
+    else if(t==='leaves'){set(x,y,z,null)}}
+  if(pl)inv.planksBroken=true;if(br)inv.bricksBroken=true;
+  fire(cx,cy,cz,40);smoke(cx,cy,cz,22);sfx.boom();rebuild();
+  flashLight.position.set(cx,cy+1,cz);flashLight.intensity=6;$('flash').style.opacity=.65;setTimeout(()=>$('flash').style.opacity=0,90);
+  const dist=Math.hypot(P.x-cx,P.z-cz);shake=Math.max(.15,.9-dist*.06);
+  const ball=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),new THREE.MeshBasicMaterial({color:0xffb030,transparent:true,opacity:.9}));ball.position.set(cx,cy,cz);scene.add(ball);fireballs.push({m:ball,t:0});
+  const msg=pl||br?'БУМ! Стена пробита!':cracked?'Кирпич треснул! Нужен ещё один TNT':'БУМ!';
+  if(dist<2.2){P.vy=6;toast('БУМ! Тебя откинуло взрывом')}else toast(msg);
+  hud();
+}
+function toggleCraft(){if($('qpanel').classList.contains('on'))return;const on=!$('craft').classList.contains('on');$('craft').classList.toggle('on',on);uiOpen=on;if(on&&document.exitPointerLock)document.exitPointerLock();updCraft()}
+function updCraft(){$('c_tnt').disabled=!(inv.coal>=4&&inv.log>=2&&inv.iron>=1);$('c_pick').disabled=!(inv.diamond>=3&&inv.log>=2)||inv.pick}
+$('c_tnt').onclick=()=>{inv.coal-=4;inv.log-=2;inv.iron-=1;inv.tnt++;inv.tntMade++;sfx.pop();toast('Скрафчен TNT!');updCraft();hud()};
+$('c_pick').onclick=()=>{inv.diamond-=3;inv.log-=2;inv.pick=true;sfx.win();toast('Алмазная кирка готова!');updCraft();hud()};
+$('c_close').onclick=toggleCraft;
+function winGame(){if(won)return;won=true;inv.chest=true;sfx.win();const s=Math.round((performance.now()-t0)/1000);
+  for(let i=0;i<6;i++)setTimeout(()=>{fire(CX+.5,BASE+1.5,CZ+.5,18)},i*200);
+  uiOpen=true;if(document.exitPointerLock)document.exitPointerLock();
+  $('wintext').textContent=`Ты прошёл крепость за ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}! В сундуке: 64 алмаза, золотое яблоко и зачарованный меч. Добыто ресурсов: брёвна ${inv.logT}, уголь ${inv.coalT}, железо ${inv.ironT}, алмазы ${inv.diamondT}.`;
+  $('win').classList.add('on')}
+function startGame(){buildWorld();rebuild();inv={log:0,coal:0,iron:0,diamond:0,tnt:0,tntMade:0,pick:false,logT:0,coalT:0,ironT:0,diamondT:0};
+  Object.assign(P,{x:CX+.5,y:BASE+.01,z:3.5,vy:0,yaw:Math.PI,pitch:-.05});tnts.forEach(t=>scene.remove(t.m));tnts=[];won=false;
+  $('start').classList.remove('on');$('start').style.display='none';$('win').classList.remove('on');uiOpen=false;started=true;t0=performance.now();hud();toast('Найди руду и деревья. Крепость — в центре');
+  if(cv.requestPointerLock)lockPtr()}
+$('go').onclick=()=>{ac();startGame()};$('again').onclick=startGame;
+
+// ---------- loop ----------
+buildWorld();rebuild();
+let last=performance.now();
+function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;
+  if(started)physics(dt);
+  camera.position.set(P.x,P.y+1.6,P.z);camera.rotation.order='YXZ';camera.rotation.set(P.pitch,P.yaw,0);
+  if(shake>0){camera.position.x+=(Math.random()-.5)*shake;camera.position.y+=(Math.random()-.5)*shake;camera.position.z+=(Math.random()-.5)*shake;shake=Math.max(0,shake-dt*1.6)}
+  flashLight.intensity=Math.max(0,flashLight.intensity-dt*12);
+  for(let i=tnts.length-1;i>=0;i--){const t=tnts[i];t.t-=dt;t.flash+=dt;const on=Math.floor(t.flash*(t.t<1?10:4))%2===0;t.m.material.forEach((mm,j)=>mm.map=on?T.tntFlash:(j===2||j===3?T.tntTop:T.tntSide));t.m.scale.setScalar(t.t<.4?1+(0.4-t.t)*.6:1);
+    if(Math.floor(t.flash*4)!==Math.floor((t.flash-dt)*4))sfx.fuse();if(t.t<=0){scene.remove(t.m);tnts.splice(i,1);explode(t.p)}}
+  updateParts(dt);updateFireballs(dt);clouds.children.forEach(c=>{c.position.x+=dt*.6;if(c.position.x>80)c.position.x=-40});
+  if(started&&!uiOpen){const r=ray();if(r){sel.visible=true;sel.position.set(r.x+.5,r.y+.5,r.z+.5)}else sel.visible=false}else sel.visible=false;
+  $("tm").textContent=started&&!won?(s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0'))(Math.round((now-t0)/1000)):$("tm").textContent;
+  renderer.render(scene,camera);requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+
+// debug hooks for testing
+window.__mc={P,get inv(){return inv},give(){Object.assign(inv,{log:20,coal:20,iron:10,diamond:10,tnt:5});hud()},tp(x,y,z,yaw,pitch){Object.assign(P,{x,y,z,yaw,pitch:pitch||0,vy:0})},explode,ray,Q,world:()=>world,startGame};
+})();
+</script>
+</body>
+</html>
